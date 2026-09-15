@@ -1,0 +1,12 @@
+[
+  {
+    "id": "sample_tech_interview_01",
+    "reference_transcript": "in today's mock interview we will focus on system design and distributed caching with redis and postgresql",
+    "hypothesis_transcript": "in today's mock interview we will focus on system design and distributed caching with redis and postgresql"
+  },
+  {
+    "id": "sample_tech_interview_02",
+    "reference_transcript": "can you explain how sentence transformers compute dense embeddings for semantic search",
+    "hypothesis_transcript": "can you explain how sentence transformer computes dense embeddings for semantic search"
+  }
+]

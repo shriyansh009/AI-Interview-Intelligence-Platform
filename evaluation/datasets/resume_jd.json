@@ -1,0 +1,9 @@
+[
+  {
+    "candidate_name": "Senior Full-Stack AI Engineer",
+    "ground_truth_skills": ["Python", "FastAPI", "PostgreSQL", "Docker", "React", "TypeScript", "LangChain", "ChromaDB"],
+    "predicted_skills": ["Python", "FastAPI", "PostgreSQL", "Docker", "React", "TypeScript", "LangChain", "ChromaDB", "AWS"],
+    "jd_required_skills": ["Python", "FastAPI", "PostgreSQL", "Docker", "Kubernetes", "ChromaDB"],
+    "expected_ats_score_range": [75.0, 95.0]
+  }
+]

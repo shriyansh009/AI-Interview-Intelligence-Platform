@@ -1,0 +1,14 @@
+[
+  {
+    "question": "What is RAG and how does it work with vector embeddings?",
+    "retrieved_context": "Retrieval-Augmented Generation (RAG) combines dense vector retrieval with LLMs. Documents are chunked and converted into 384-dimensional embeddings using SentenceTransformers. ChromaDB stores the embeddings and retrieves top-k similar chunks using cosine similarity.",
+    "reference_answer": "RAG combines vector retrieval with large language models by converting chunked documents into embeddings, retrieving the most relevant contexts, and feeding them to the model for grounded responses.",
+    "generated_answer": "RAG enhances language models by retrieving relevant chunks from a vector database using dense embeddings, grounding the LLM's answers in retrieved context."
+  },
+  {
+    "question": "How should database connection pooling be configured in FastAPI?",
+    "retrieved_context": "FastAPI applications with SQLAlchemy should use pool_pre_ping=True and configure appropriate pool sizes to avoid stale connections under concurrent request loads.",
+    "reference_answer": "Database connection pooling in FastAPI is configured in SQLAlchemy with pool_pre_ping=True and custom pool sizes.",
+    "generated_answer": "In FastAPI with SQLAlchemy, connection pooling is configured with pool_pre_ping=True to check connection liveness."
+  }
+]

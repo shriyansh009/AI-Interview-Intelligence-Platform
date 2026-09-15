@@ -1,0 +1,42 @@
+{
+  "retrieval": {
+    "precision@1": 1.0,
+    "precision@3": 0.4667,
+    "precision@5": 0.28,
+    "recall@1": 0.8,
+    "recall@3": 1.0,
+    "recall@5": 1.0,
+    "mrr": 1.0,
+    "ndcg@5": 0.9839
+  },
+  "rag_generation": {
+    "faithfulness": 0.78,
+    "answer_relevance": 0.891,
+    "context_relevance": 0.88
+  },
+  "transcription": {
+    "word_error_rate_wer": 0.0833,
+    "character_error_rate_cer": 0.0117
+  },
+  "resume_intelligence": {
+    "skill_precision": 0.8889,
+    "skill_recall": 1.0,
+    "skill_f1": 0.9412
+  },
+  "interview_quality": {
+    "average_question_quality_score_5pt": 4.58,
+    "dimensions": {
+      "resume_relevance": 4.7,
+      "jd_relevance": 4.8,
+      "technical_depth": 4.5,
+      "difficulty_calibration": 4.4,
+      "specificity": 4.6,
+      "follow_up_quality": 4.5
+    }
+  },
+  "performance": {
+    "p50_ms": 169.0,
+    "p95_ms": 435.3,
+    "avg_ms": 187.6
+  }
+}

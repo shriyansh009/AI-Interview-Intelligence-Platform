@@ -1,0 +1,31 @@
+# Python environment
+.venv/
+venv/
+env/
+
+# Python caches
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# Local config and secrets
+.env
+.env.*
+
+# Local storage and generated data
+uploads/
+vector_db/
+*.sqlite3
+*.db
+
+# Test artifacts
+htmlcov/
+.coverage
+
+# OS/editor junk
+.DS_Store
+Thumbs.db

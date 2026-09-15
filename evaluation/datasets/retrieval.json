@@ -1,0 +1,22 @@
+[
+  {
+    "query": "Where does the interviewer explain RAG and vector retrieval?",
+    "relevant_chunk_ids": ["doc_rag_intro_1", "doc_rag_intro_2"]
+  },
+  {
+    "query": "What are the required microservice communication patterns with gRPC?",
+    "relevant_chunk_ids": ["doc_grpc_arch_1"]
+  },
+  {
+    "query": "How is PostgreSQL transaction isolation handled under high load?",
+    "relevant_chunk_ids": ["doc_pg_isolation_1", "doc_pg_isolation_2"]
+  },
+  {
+    "query": "Explain candidate experience with Docker and Kubernetes cluster deployment",
+    "relevant_chunk_ids": ["doc_k8s_experience_1"]
+  },
+  {
+    "query": "What are the key decisions made regarding FastAPI asynchronous endpoints?",
+    "relevant_chunk_ids": ["doc_fastapi_async_1"]
+  }
+]

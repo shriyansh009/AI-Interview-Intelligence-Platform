@@ -109,7 +109,6 @@ python report.py
 
 - [Setup & Installation](docs/setup.md)
 - [Architecture Report](docs/current-architecture.md)
-- [Migration Plan](docs/migration-plan.md)
 - [API Documentation](docs/api.md)
 - [Database Schema](docs/database.md)
 - [Multi-Source RAG Guide](docs/rag.md)

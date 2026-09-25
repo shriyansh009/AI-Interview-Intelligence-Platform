@@ -1,4 +1,3 @@
-import os
 from sqlalchemy import create_engine
 from sqlalchemy.orm import declarative_base, sessionmaker
 from config import get_settings
@@ -6,11 +5,10 @@ from config import get_settings
 settings = get_settings()
 
 database_url = settings.DATABASE_URL
-# Handle SQLite compatibility (connect_args) vs PostgreSQL
-if database_url.startswith("sqlite"):
-    engine = create_engine(database_url, connect_args={"check_same_thread": False})
-else:
-    engine = create_engine(database_url, pool_pre_ping=True)
+if not database_url.startswith("postgresql://"):
+    raise ValueError("DATABASE_URL must use a PostgreSQL connection string")
+
+engine = create_engine(database_url, pool_pre_ping=True)
 
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 Base = declarative_base()

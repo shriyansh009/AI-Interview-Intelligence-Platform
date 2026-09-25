@@ -80,3 +80,18 @@ All routes use the prefix `/api/v1` and require an `Authorization: Bearer <token
 ## 10. Evaluation (`/api/v1/evaluation`)
 
 - `GET /api/v1/evaluation/metrics` — Fetch real-time system metrics for the Evaluation Dashboard
+
+
+## resume API (23ms)
+
+                    Current
+──────────────────────────────
+File save             0.2s
+PDF extraction        0.8s
+Resume parsing        3.5s  ← probably expensive
+DB operation          0.1s
+Embedding             1.8s  ← probably expensive
+Chroma indexing       0.5s
+
+Total                  6.9s
+

@@ -73,7 +73,9 @@ class Resume(Base):
     parsed_education = Column(Text, default="[]")  # JSON array
     created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)
-
+    status = Column(String(20),default="processing",nullable=False)
+    processing_error = Column(Text, nullable=True)
+    
     user = relationship("User", back_populates="resumes")
     analyses = relationship("Analysis", back_populates="resume", cascade="all, delete-orphan")
 

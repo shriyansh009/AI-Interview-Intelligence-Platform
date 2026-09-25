@@ -174,7 +174,7 @@ The core business logic lives in `backend/services`:
 
 The project relies on:
 
-- PostgreSQL or SQLite compatibility for DB initialization,
+- PostgreSQL for relational persistence,
 - ChromaDB for vector retrieval,
 - SentenceTransformers embedding model (`all-MiniLM-L6-v2`),
 - Gemini or Mistral-backed LLM calls.

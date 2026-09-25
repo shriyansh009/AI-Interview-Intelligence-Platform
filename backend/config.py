@@ -13,7 +13,7 @@ class Settings(BaseSettings):
     # Database
     DATABASE_URL: str = os.getenv(
         "DATABASE_URL",
-        "postgresql://postgres:postgres@localhost:5432/ai_interview_intelligence"
+        "postgresql://postgres:postgrespassword@127.0.0.1:5433/ai_interview_intelligence"
     )
 
     # JWT Authentication
@@ -27,6 +27,8 @@ class Settings(BaseSettings):
     GEMINI_MODEL: str = os.getenv("GEMINI_MODEL", "gemini-1.5-flash")
     MISTRAL_API_KEY: str = os.getenv("MISTRAL_API_KEY", "")
     MISTRAL_MODEL: str = os.getenv("MISTRAL_MODEL", "mistral-small-latest")
+    OLLAMA_MODEL: str = os.getenv("OLLAMA_MODEL", "llama3.2:latest")
+    OLLAMA_BASE_URL: str = os.getenv("OLLAMA_BASE_URL", "http://localhost:11434")
 
     # Optional Sarvam STT
     SARVAM_API_KEY: str = os.getenv("SARVAM_API_KEY", "")

@@ -10,9 +10,11 @@ from fastapi import (
     File,
     Form,
     HTTPException,
+    Request,
     UploadFile,
     status,
 )
+from fastapi.responses import StreamingResponse
 from sqlalchemy.orm import Session
 
 from config import get_settings
@@ -250,6 +252,62 @@ def get_video_detail(
         open_questions=open_questions,
         chunks=chunks_resp
     )
+
+
+@router.get("/{video_id}/stream")
+def stream_video(
+    video_id: int,
+    request: Request,
+    db: Session = Depends(get_db)
+):
+    """Stream video file with byte-range support for interactive timeline seeking."""
+    video = db.query(Video).filter(Video.id == video_id).first()
+    if not video or not video.file_path or not os.path.exists(video.file_path):
+        raise HTTPException(status_code=404, detail="Video file not found on server.")
+
+    file_size = os.path.getsize(video.file_path)
+    range_header = request.headers.get("range")
+
+    def range_stream(file_path: str, start: int, end: int, chunk_size: int = 1024 * 1024):
+        with open(file_path, "rb") as f:
+            f.seek(start)
+            bytes_left = end - start + 1
+            while bytes_left > 0:
+                read_size = min(chunk_size, bytes_left)
+                data = f.read(read_size)
+                if not data:
+                    break
+                bytes_left -= len(data)
+                yield data
+
+    if range_header:
+        byte_range = range_header.replace("bytes=", "").split("-")
+        start = int(byte_range[0])
+        end = int(byte_range[1]) if len(byte_range) > 1 and byte_range[1] else file_size - 1
+        end = min(end, file_size - 1)
+        content_length = end - start + 1
+
+        headers = {
+            "Content-Range": f"bytes {start}-{end}/{file_size}",
+            "Accept-Ranges": "bytes",
+            "Content-Length": str(content_length),
+            "Content-Type": "video/mp4",
+        }
+        return StreamingResponse(
+            range_stream(video.file_path, start, end),
+            status_code=206,
+            headers=headers
+        )
+    else:
+        headers = {
+            "Accept-Ranges": "bytes",
+            "Content-Length": str(file_size),
+            "Content-Type": "video/mp4",
+        }
+        return StreamingResponse(
+            range_stream(video.file_path, 0, file_size - 1),
+            headers=headers
+        )
 
 
 @router.delete("/{video_id}", status_code=status.HTTP_200_OK)

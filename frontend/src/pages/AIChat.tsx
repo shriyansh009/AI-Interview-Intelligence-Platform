@@ -8,14 +8,16 @@ import {
   Plus,
   Loader2,
   FileText,
-  Video,
+  Video as VideoIcon,
   Bot,
   User as UserIcon,
+  X,
 } from 'lucide-react';
 import { Navbar } from '../components/Navbar';
 import { SourceCitation } from '../components/SourceCitation';
-import { chatService } from '../services/api';
-import { ChatMessage, ChatSession } from '../types';
+import { VideoPlayerWithTimeline } from '../components/VideoPlayerWithTimeline';
+import { chatService, videoService } from '../services/api';
+import { ChatMessage, ChatSession, Video } from '../types';
 
 export const AIChat: React.FC = () => {
   const [sessions, setSessions] = useState<ChatSession[]>([]);
@@ -23,6 +25,8 @@ export const AIChat: React.FC = () => {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [inputMessage, setInputMessage] = useState('');
   const [sending, setSending] = useState(false);
+  const [activeVideo, setActiveVideo] = useState<Video | null>(null);
+  const [activeTimestamp, setActiveTimestamp] = useState<number | undefined>(undefined);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -71,6 +75,18 @@ export const AIChat: React.FC = () => {
     }
   };
 
+  const handleCitationClick = async (citation: any) => {
+    if (citation.source_type === 'video' && citation.source_id) {
+      try {
+        const v = await videoService.get(citation.source_id);
+        setActiveVideo(v);
+        setActiveTimestamp(citation.start_time);
+      } catch (err) {
+        console.error('Failed to load video:', err);
+      }
+    }
+  };
+
   const handleSendMessage = async (e?: React.FormEvent) => {
     if (e) e.preventDefault();
     if (!inputMessage.trim() || sending) return;
@@ -112,7 +128,7 @@ export const AIChat: React.FC = () => {
         <div className="w-64 border-r border-slate-800 bg-slate-900/40 p-3 flex flex-col shrink-0">
           <button
             onClick={handleNewSession}
-            className="w-full py-2.5 px-3 rounded-xl border border-slate-700 bg-slate-800/80 hover:bg-slate-800 text-slate-200 font-semibold text-xs flex items-center justify-center gap-2 mb-3 transition-colors"
+            className="w-full py-2.5 px-3 rounded-xl border border-slate-700 bg-slate-800/80 hover:bg-slate-800 text-slate-200 font-semibold text-xs flex items-center justify-center gap-2 mb-3 transition-colors cursor-pointer"
           >
             <Plus className="h-4 w-4 text-teal-400" />
             <span>New Chat Session</span>
@@ -123,7 +139,7 @@ export const AIChat: React.FC = () => {
               <button
                 key={s.id}
                 onClick={() => setActiveSessionId(s.id)}
-                className={`w-full text-left p-2.5 rounded-xl text-xs font-medium truncate transition-all block ${
+                className={`w-full text-left p-2.5 rounded-xl text-xs font-medium truncate transition-all block cursor-pointer ${
                   activeSessionId === s.id
                     ? 'bg-teal-500/15 text-teal-300 border border-teal-500/30'
                     : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/40'
@@ -137,6 +153,28 @@ export const AIChat: React.FC = () => {
 
         {/* Right: Message Stream & Input */}
         <div className="flex-1 flex flex-col h-full overflow-hidden bg-slate-950/40">
+          {/* Active Live Video Player Modal if Citation is Clicked */}
+          {activeVideo && (
+            <div className="p-4 border-b border-slate-800 bg-slate-900/95 backdrop-blur-xl shrink-0">
+              <div className="flex items-center justify-between mb-3">
+                <span className="text-xs font-bold text-teal-400 flex items-center gap-1.5">
+                  <VideoIcon className="h-4 w-4" />
+                  <span>Cited Video Playback: {activeVideo.title}</span>
+                </span>
+                <button
+                  onClick={() => {
+                    setActiveVideo(null);
+                    setActiveTimestamp(undefined);
+                  }}
+                  className="p-1 rounded bg-slate-800 text-slate-400 hover:text-slate-200 cursor-pointer"
+                >
+                  <X className="h-4 w-4" />
+                </button>
+              </div>
+              <VideoPlayerWithTimeline video={activeVideo} initialSeekTime={activeTimestamp} />
+            </div>
+          )}
+
           {/* Messages Area */}
           <div className="flex-1 overflow-y-auto p-6 space-y-6">
             {messages.length > 0 ? (
@@ -172,7 +210,11 @@ export const AIChat: React.FC = () => {
                           </span>
                           <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
                             {citations.map((c: any, ci: number) => (
-                              <SourceCitation key={ci} citation={c} />
+                              <SourceCitation
+                                key={ci}
+                                citation={c}
+                                onJumpToTime={() => handleCitationClick(c)}
+                              />
                             ))}
                           </div>
                         </div>
@@ -212,7 +254,7 @@ export const AIChat: React.FC = () => {
               <button
                 type="submit"
                 disabled={sending || !inputMessage.trim()}
-                className="px-5 py-3 rounded-xl bg-teal-500 hover:bg-teal-400 disabled:opacity-50 text-slate-950 font-bold text-xs flex items-center gap-1.5 shadow-lg shadow-teal-500/20 transition-all"
+                className="px-5 py-3 rounded-xl bg-teal-500 hover:bg-teal-400 disabled:opacity-50 text-slate-950 font-bold text-xs flex items-center gap-1.5 shadow-lg shadow-teal-500/20 transition-all cursor-pointer"
               >
                 {sending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
                 <span>Send</span>

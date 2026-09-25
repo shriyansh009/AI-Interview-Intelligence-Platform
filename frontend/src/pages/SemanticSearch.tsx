@@ -1,16 +1,19 @@
 import React, { useState } from 'react';
-import { Search, Sparkles, Video, Play, Loader2 } from 'lucide-react';
+import { Search, Sparkles, Video as VideoIcon, Play, Loader2, X } from 'lucide-react';
 import { Navbar } from '../components/Navbar';
 import { TimestampResult } from '../components/TimestampResult';
+import { VideoPlayerWithTimeline } from '../components/VideoPlayerWithTimeline';
 import { videoService } from '../services/api';
-import { VideoSearchResult } from '../types';
+import { Video, VideoSearchResult } from '../types';
 
 export const SemanticSearch: React.FC = () => {
   const [query, setQuery] = useState('');
   const [results, setResults] = useState<VideoSearchResult[]>([]);
   const [searching, setSearching] = useState(false);
   const [searched, setSearched] = useState(false);
-  const [activeTimestamp, setActiveTimestamp] = useState<number | null>(null);
+  const [activeVideo, setActiveVideo] = useState<Video | null>(null);
+  const [activeTimestamp, setActiveTimestamp] = useState<number | undefined>(undefined);
+  const [loadingVideo, setLoadingVideo] = useState(false);
 
   const handleSearch = async (e?: React.FormEvent) => {
     if (e) e.preventDefault();
@@ -28,8 +31,17 @@ export const SemanticSearch: React.FC = () => {
     }
   };
 
-  const handleJump = (seconds: number) => {
-    setActiveTimestamp(seconds);
+  const handleJumpToTimestamp = async (result: VideoSearchResult) => {
+    setLoadingVideo(true);
+    try {
+      const videoData = await videoService.get(result.video_id);
+      setActiveVideo(videoData);
+      setActiveTimestamp(result.start_time);
+    } catch (err) {
+      console.error('Failed to load video for player:', err);
+    } finally {
+      setLoadingVideo(false);
+    }
   };
 
   const sampleQueries = [
@@ -41,10 +53,39 @@ export const SemanticSearch: React.FC = () => {
 
   return (
     <div className="flex-1 flex flex-col h-screen overflow-hidden">
-      <Navbar title="Timestamp-Aware Semantic Search" subtitle="Find exact seconds where technical concepts are explained" />
+      <Navbar
+        title="Timestamp-Aware Semantic Search"
+        subtitle="Search spoken concepts and view live video playback at exact timeline markers"
+      />
 
-      <main className="flex-1 overflow-y-auto p-6 max-w-5xl mx-auto w-full space-y-6">
-        {/* Search Bar */}
+      <main className="flex-1 overflow-y-auto p-6 max-w-6xl mx-auto w-full space-y-6">
+        {/* Active Live Video Player Modal / Section */}
+        {activeVideo && (
+          <div className="p-6 rounded-3xl bg-slate-900/90 border border-teal-500/30 backdrop-blur-xl shadow-2xl space-y-4">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <span className="h-2.5 w-2.5 rounded-full bg-teal-400 animate-pulse" />
+                <h3 className="text-sm font-bold text-slate-100 flex items-center gap-2">
+                  <span>Live Video Player — {activeVideo.title}</span>
+                </h3>
+              </div>
+              <button
+                onClick={() => {
+                  setActiveVideo(null);
+                  setActiveTimestamp(undefined);
+                }}
+                className="p-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-slate-200 transition-colors cursor-pointer"
+                title="Close player"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+
+            <VideoPlayerWithTimeline video={activeVideo} initialSeekTime={activeTimestamp} />
+          </div>
+        )}
+
+        {/* Search Input Bar */}
         <div className="p-6 rounded-2xl border border-slate-800 bg-slate-900/60 backdrop-blur-sm shadow-xl space-y-4">
           <form onSubmit={handleSearch} className="flex items-center gap-3">
             <div className="relative flex-1">
@@ -61,7 +102,7 @@ export const SemanticSearch: React.FC = () => {
             <button
               type="submit"
               disabled={searching || !query}
-              className="px-6 py-3 rounded-xl bg-teal-500 hover:bg-teal-400 disabled:opacity-50 text-slate-950 font-bold text-xs flex items-center gap-2 transition-all shadow-lg shadow-teal-500/20"
+              className="px-6 py-3 rounded-xl bg-teal-500 hover:bg-teal-400 disabled:opacity-50 text-slate-950 font-bold text-xs flex items-center gap-2 transition-all shadow-lg shadow-teal-500/20 cursor-pointer"
             >
               {searching ? <Loader2 className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4" />}
               <span>Search</span>
@@ -79,7 +120,7 @@ export const SemanticSearch: React.FC = () => {
                   onClick={() => {
                     setQuery(sq);
                   }}
-                  className="px-2.5 py-1 rounded-lg bg-slate-800/60 hover:bg-slate-800 text-slate-300 text-[11px] border border-slate-700/60 transition-colors"
+                  className="px-2.5 py-1 rounded-lg bg-slate-800/60 hover:bg-slate-800 text-slate-300 text-[11px] border border-slate-700/60 transition-colors cursor-pointer"
                 >
                   {sq}
                 </button>
@@ -88,48 +129,29 @@ export const SemanticSearch: React.FC = () => {
           </div>
         </div>
 
-        {/* Video Player Modal or Preview if Timestamp selected */}
-        {activeTimestamp !== null && (
-          <div className="p-4 rounded-2xl border border-teal-500/30 bg-teal-950/20 flex items-center justify-between">
-            <div className="flex items-center gap-3">
-              <div className="h-9 w-9 rounded-xl bg-teal-500/20 flex items-center justify-center text-teal-400 font-bold">
-                <Play className="h-5 w-5 fill-current" />
-              </div>
-              <div>
-                <p className="text-xs font-bold text-slate-200">Video Cue Position Active</p>
-                <p className="text-[11px] text-teal-400 font-['JetBrains_Mono',monospace]">
-                  Seeking to timestamp: {Math.floor(activeTimestamp / 60)}:{String(Math.floor(activeTimestamp % 60)).padStart(2, '0')} ({activeTimestamp}s)
-                </p>
-              </div>
-            </div>
-            <button
-              onClick={() => setActiveTimestamp(null)}
-              className="text-xs text-slate-400 hover:text-slate-200 px-3 py-1 rounded-lg bg-slate-900 border border-slate-800"
-            >
-              Close
-            </button>
-          </div>
-        )}
-
         {/* Results List */}
         <div className="space-y-4">
           <div className="flex items-center justify-between">
             <h3 className="text-xs font-bold uppercase tracking-wider text-slate-400">
-              Matching Segments ({results.length})
+              Matching Segments with Timestamp Cue Points ({results.length})
             </h3>
           </div>
 
           {results.length > 0 ? (
             results.map((r, i) => (
-              <TimestampResult key={i} result={r} onJumpToTime={handleJump} />
+              <TimestampResult
+                key={i}
+                result={r}
+                onJumpToTime={() => handleJumpToTimestamp(r)}
+              />
             ))
           ) : searched && !searching ? (
             <div className="p-12 text-center rounded-2xl border border-slate-800 bg-slate-900/40 text-slate-400 text-xs">
-              No matching timestamped segments found. Try broadening your search terms or upload more video material.
+              No matching timestamped segments found. Try uploading a video in the Video Library.
             </div>
           ) : (
             <div className="p-12 text-center rounded-2xl border border-slate-800 bg-slate-900/40 text-slate-400 text-xs">
-              Type a technical query above to search all video transcripts.
+              Type a technical query above to search all video transcripts and jump to live video playback.
             </div>
           )}
         </div>

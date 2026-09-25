@@ -9,9 +9,10 @@ import {
   CheckCircle,
   AlertCircle,
   Loader2,
-  FileAudio,
+  Play,
 } from 'lucide-react';
 import { Navbar } from '../components/Navbar';
+import { VideoPlayerWithTimeline } from '../components/VideoPlayerWithTimeline';
 import { videoService } from '../services/api';
 import { Video } from '../types';
 
@@ -39,6 +40,9 @@ export const VideoLibrary: React.FC = () => {
           const detailed = await videoService.get(updated.id);
           setSelectedVideo(detailed);
         }
+      } else if (list.length > 0 && !selectedVideo) {
+        const firstDetailed = await videoService.get(list[0].id);
+        setSelectedVideo(firstDetailed);
       }
     } catch (err) {
       console.error('Error fetching videos:', err);
@@ -54,7 +58,8 @@ export const VideoLibrary: React.FC = () => {
     try {
       const v = await videoService.upload(file);
       setVideos([v, ...videos]);
-      setSelectedVideo(v);
+      const detailed = await videoService.get(v.id);
+      setSelectedVideo(detailed);
     } catch (err: any) {
       alert(err.response?.data?.detail || 'Failed to upload video');
     } finally {
@@ -69,7 +74,8 @@ export const VideoLibrary: React.FC = () => {
     try {
       const v = await videoService.uploadYouTube(youtubeUrl, youtubeTitle || undefined);
       setVideos([v, ...videos]);
-      setSelectedVideo(v);
+      const detailed = await videoService.get(v.id);
+      setSelectedVideo(detailed);
       setYoutubeUrl('');
       setYoutubeTitle('');
     } catch (err: any) {
@@ -92,8 +98,11 @@ export const VideoLibrary: React.FC = () => {
     if (!confirm('Are you sure you want to delete this video?')) return;
     try {
       await videoService.delete(id);
-      setVideos(videos.filter((v) => v.id !== id));
-      if (selectedVideo?.id === id) setSelectedVideo(null);
+      const remaining = videos.filter((v) => v.id !== id);
+      setVideos(remaining);
+      if (selectedVideo?.id === id) {
+        setSelectedVideo(remaining.length > 0 ? await videoService.get(remaining[0].id) : null);
+      }
     } catch (err) {
       alert('Failed to delete video');
     }
@@ -101,25 +110,58 @@ export const VideoLibrary: React.FC = () => {
 
   return (
     <div className="flex-1 flex flex-col h-screen overflow-hidden">
-      <Navbar title="Video Knowledge Library" subtitle="Speech-to-text transcripts with timestamped vector indexing" />
+      <Navbar
+        title="Live Video Intelligence & Interactive Timeline"
+        subtitle="Watch video with synced speech-to-text transcripts and timeline scrubbing"
+      />
 
       <main className="flex-1 overflow-y-auto p-6 space-y-6">
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
-          {/* Left Column: Upload / YouTube (4 cols) */}
-          <div className="lg:col-span-5 space-y-6">
+        {/* Top Active Video Player Area */}
+        {selectedVideo && (
+          <div className="space-y-3">
+            <div className="flex items-center justify-between">
+              <h2 className="text-sm font-bold uppercase tracking-wider text-slate-300 flex items-center gap-2">
+                <Play className="h-4 w-4 text-teal-400 fill-current" />
+                <span>Now Playing: {selectedVideo.title}</span>
+              </h2>
+            </div>
+            <VideoPlayerWithTimeline video={selectedVideo} />
+          </div>
+        )}
+
+        {/* Video Management Grid */}
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 pt-2">
+          {/* File & YouTube Upload Panels (6 cols) */}
+          <div className="lg:col-span-6 space-y-6">
             {/* File Upload */}
             <div className="p-5 rounded-2xl border border-slate-800 bg-slate-900/60 backdrop-blur-sm">
               <h3 className="text-sm font-bold text-slate-200 mb-3 flex items-center gap-2">
                 <VideoIcon className="h-4 w-4 text-cyan-400" />
-                <span>Upload Interview / Tutorial Video</span>
+                <span>Upload Local Video / Audio File</span>
               </h3>
 
               <label className="flex flex-col items-center justify-center p-6 border-2 border-dashed border-slate-700 hover:border-cyan-500/60 rounded-xl bg-slate-950/40 cursor-pointer transition-all">
                 <Upload className="h-8 w-8 text-cyan-400 mb-2" />
-                <span className="text-xs font-semibold text-slate-200">Click to upload MP4, MOV, MKV, WAV</span>
-                <span className="text-[11px] text-slate-400 mt-1">Automatic Whisper audio transcription</span>
-                <input type="file" accept="video/*,audio/*" onChange={handleFileUpload} className="hidden" />
+                <span className="text-xs font-semibold text-slate-200">
+                  Click to upload MP4, MOV, MKV, WebM, WAV
+                </span>
+                <span className="text-[11px] text-slate-400 mt-1">
+                  Transcribes speech with timestamp sync
+                </span>
+                <input
+                  type="file"
+                  accept="video/*,audio/*"
+                  onChange={handleFileUpload}
+                  className="hidden"
+                />
               </label>
+
+              {isUploading && (
+                <div className="mt-3 flex items-center justify-center gap-2 text-xs text-cyan-400">
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                  <span>Uploading and initiating background transcription...</span>
+                </div>
+              )}
             </div>
 
             {/* YouTube Input */}
@@ -139,7 +181,7 @@ export const VideoLibrary: React.FC = () => {
                 />
                 <input
                   type="text"
-                  placeholder="Optional Title"
+                  placeholder="Optional Title (e.g. System Design Mock)"
                   value={youtubeTitle}
                   onChange={(e) => setYoutubeTitle(e.target.value)}
                   className="w-full p-2.5 text-xs bg-slate-950/60 border border-slate-800 rounded-xl text-slate-200 focus:outline-none focus:border-cyan-500"
@@ -147,131 +189,90 @@ export const VideoLibrary: React.FC = () => {
                 <button
                   type="submit"
                   disabled={isUploading || !youtubeUrl}
-                  className="w-full py-2.5 rounded-xl bg-cyan-500 hover:bg-cyan-400 disabled:opacity-50 text-slate-950 font-bold text-xs flex items-center justify-center gap-2 transition-all"
+                  className="w-full py-2.5 rounded-xl bg-cyan-500 hover:bg-cyan-400 disabled:opacity-50 text-slate-950 font-bold text-xs flex items-center justify-center gap-2 transition-all cursor-pointer"
                 >
                   <Sparkles className="h-4 w-4" />
-                  <span>Fetch & Transcribe</span>
+                  <span>Fetch, Transcribe & Index</span>
                 </button>
               </form>
             </div>
-
-            {/* Videos List */}
-            <div className="p-5 rounded-2xl border border-slate-800 bg-slate-900/60">
-              <h4 className="text-xs font-bold uppercase tracking-wider text-slate-400 mb-3">
-                Processed Videos ({videos.length})
-              </h4>
-              <div className="space-y-2 max-h-60 overflow-y-auto pr-1">
-                {videos.map((v) => (
-                  <div
-                    key={v.id}
-                    onClick={() => handleSelectVideo(v)}
-                    className={`p-3 rounded-xl border flex items-center justify-between cursor-pointer transition-all ${
-                      selectedVideo?.id === v.id
-                        ? 'border-cyan-500/50 bg-cyan-500/10 text-cyan-200'
-                        : 'border-slate-800 bg-slate-950/40 text-slate-300 hover:border-slate-700'
-                    }`}
-                  >
-                    <div className="min-w-0 pr-2">
-                      <p className="text-xs font-semibold truncate">{v.title}</p>
-                      <div className="flex items-center gap-2 text-[10px] text-slate-400 mt-0.5">
-                        <span className="capitalize">{v.source_type}</span>
-                        <span>•</span>
-                        <span
-                          className={`font-semibold ${
-                            v.status === 'completed'
-                              ? 'text-teal-400'
-                              : v.status === 'processing'
-                              ? 'text-amber-400 animate-pulse'
-                              : 'text-rose-400'
-                          }`}
-                        >
-                          {v.status}
-                        </span>
-                      </div>
-                    </div>
-                    <button
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        handleDeleteVideo(v.id);
-                      }}
-                      className="p-1 text-slate-400 hover:text-rose-400 shrink-0"
-                    >
-                      <Trash2 className="h-3.5 w-3.5" />
-                    </button>
-                  </div>
-                ))}
-              </div>
-            </div>
           </div>
 
-          {/* Right Column: Transcript & Timestamp Chunks (7 cols) */}
-          <div className="lg:col-span-7 space-y-6">
-            {selectedVideo ? (
-              <div className="space-y-6">
-                {/* Video Info Header */}
-                <div className="p-6 rounded-2xl border border-slate-800 bg-slate-900/60 backdrop-blur-sm">
-                  <div className="flex items-start justify-between">
-                    <div>
-                      <span className="px-2.5 py-0.5 rounded-full bg-cyan-500/10 border border-cyan-500/30 text-cyan-300 text-[10px] font-bold uppercase tracking-wider">
-                        {selectedVideo.source_type}
-                      </span>
-                      <h2 className="text-lg font-bold text-slate-100 mt-2">{selectedVideo.title}</h2>
-                      <p className="text-xs text-slate-400 mt-1">
-                        Status: <span className="text-teal-400 font-semibold">{selectedVideo.status}</span>
-                      </p>
-                    </div>
-                  </div>
+          {/* Videos Library List (6 cols) */}
+          <div className="lg:col-span-6 space-y-6">
+            <div className="p-5 rounded-2xl border border-slate-800 bg-slate-900/60 h-full flex flex-col">
+              <div className="flex items-center justify-between mb-4">
+                <h4 className="text-xs font-bold uppercase tracking-wider text-slate-300">
+                  Your Video Library ({videos.length})
+                </h4>
+              </div>
 
-                  {selectedVideo.summary && (
-                    <div className="mt-4 p-3.5 rounded-xl bg-slate-950/40 border border-slate-800 text-xs text-slate-300 leading-relaxed">
-                      <p className="font-bold text-slate-200 mb-1 flex items-center gap-1.5">
-                        <Sparkles className="h-3.5 w-3.5 text-cyan-400" />
-                        <span>AI Executive Summary</span>
-                      </p>
-                      {selectedVideo.summary}
-                    </div>
-                  )}
-                </div>
-
-                {/* Timestamped Chunks */}
-                <div className="p-6 rounded-2xl border border-slate-800 bg-slate-900/60">
-                  <h3 className="text-sm font-bold text-slate-200 mb-4 flex items-center gap-2">
-                    <Clock className="h-4 w-4 text-teal-400" />
-                    <span>Timestamped Speech Chunks ({selectedVideo.chunks?.length || 0})</span>
-                  </h3>
-
-                  <div className="space-y-3 max-h-96 overflow-y-auto pr-1">
-                    {selectedVideo.chunks && selectedVideo.chunks.length > 0 ? (
-                      selectedVideo.chunks.map((chk, i) => (
-                        <div key={i} className="p-3 rounded-xl border border-slate-800/80 bg-slate-950/40 text-xs">
-                          <div className="flex items-center justify-between text-[11px] text-teal-400 font-['JetBrains_Mono',monospace] font-semibold mb-1">
-                            <span>Chunk #{chk.chunk_index + 1}</span>
-                            <span>
-                              {Math.floor(chk.start_time / 60)}:{String(Math.floor(chk.start_time % 60)).padStart(2, '0')} - {Math.floor(chk.end_time / 60)}:{String(Math.floor(chk.end_time % 60)).padStart(2, '0')}
-                            </span>
-                          </div>
-                          <p className="text-slate-300 leading-relaxed">{chk.text}</p>
+              <div className="space-y-2.5 flex-1 overflow-y-auto max-h-[380px] pr-1">
+                {videos.length > 0 ? (
+                  videos.map((v) => (
+                    <div
+                      key={v.id}
+                      onClick={() => handleSelectVideo(v)}
+                      className={`p-3.5 rounded-xl border flex items-center justify-between cursor-pointer transition-all ${
+                        selectedVideo?.id === v.id
+                          ? 'border-teal-500/50 bg-teal-500/10 text-teal-200 shadow-sm'
+                          : 'border-slate-800 bg-slate-950/40 text-slate-300 hover:border-slate-700'
+                      }`}
+                    >
+                      <div className="min-w-0 pr-3">
+                        <p className="text-xs font-bold truncate">{v.title}</p>
+                        <div className="flex items-center gap-2 text-[11px] text-slate-400 mt-1">
+                          <span className="capitalize">{v.source_type}</span>
+                          <span>•</span>
+                          <span
+                            className={`font-semibold ${
+                              v.status === 'completed'
+                                ? 'text-teal-400'
+                                : v.status === 'processing'
+                                ? 'text-amber-400 animate-pulse'
+                                : 'text-rose-400'
+                            }`}
+                          >
+                            {v.status}
+                          </span>
+                          {v.duration_seconds > 0 && (
+                            <>
+                              <span>•</span>
+                              <span>{Math.round(v.duration_seconds / 60)} min</span>
+                            </>
+                          )}
                         </div>
-                      ))
-                    ) : (
-                      <p className="text-xs text-slate-500 italic">
-                        {selectedVideo.status === 'processing'
-                          ? 'Transcription in progress...'
-                          : 'No transcript segments available.'}
-                      </p>
-                    )}
+                      </div>
+
+                      <div className="flex items-center gap-2 shrink-0">
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleSelectVideo(v);
+                          }}
+                          className="px-2.5 py-1 rounded-lg bg-teal-500/10 hover:bg-teal-500/20 text-teal-300 border border-teal-500/30 text-xs font-semibold"
+                        >
+                          Play
+                        </button>
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleDeleteVideo(v.id);
+                          }}
+                          className="p-1.5 text-slate-400 hover:text-rose-400 rounded-lg"
+                        >
+                          <Trash2 className="h-3.5 w-3.5" />
+                        </button>
+                      </div>
+                    </div>
+                  ))
+                ) : (
+                  <div className="text-center py-12 text-xs text-slate-500 italic">
+                    No videos uploaded yet. Upload a local file or YouTube video to start.
                   </div>
-                </div>
+                )}
               </div>
-            ) : (
-              <div className="h-full min-h-[400px] flex flex-col items-center justify-center p-8 rounded-2xl border border-slate-800 bg-slate-900/40 text-center text-slate-400 text-xs">
-                <VideoIcon className="h-10 w-10 text-slate-600 mb-3" />
-                <p className="font-semibold text-slate-300">No video selected</p>
-                <p className="mt-1 max-w-sm">
-                  Upload a video file or paste a YouTube URL to view transcripts and timestamped chunks.
-                </p>
-              </div>
-            )}
+            </div>
           </div>
         </div>
       </main>

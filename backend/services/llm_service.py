@@ -19,6 +19,113 @@ class BaseLLMProvider(ABC):
         """Generate structured JSON response."""
         pass
 
+class OllamaProvider(BaseLLMProvider):
+
+    def __init__(
+        self,
+        model: Optional[str] = None,
+        base_url: Optional[str] = None
+    ):
+        self.model_name = model or settings.OLLAMA_MODEL
+        self.base_url = base_url or settings.OLLAMA_BASE_URL
+        self._client = None
+
+    def _get_client(self):
+        if self._client is None:
+            from langchain_ollama import ChatOllama
+
+            self._client = ChatOllama(
+                model=self.model_name,
+                base_url=self.base_url,
+                temperature=0.1
+            )
+
+        return self._client
+
+    def generate(
+        self,
+        prompt: str,
+        system_prompt: Optional[str] = None,
+        temperature: float = 0.3
+    ) -> str:
+
+        try:
+            from langchain_core.messages import SystemMessage, HumanMessage
+
+            client = self._get_client()
+
+            messages = []
+
+            if system_prompt:
+                messages.append(
+                    SystemMessage(content=system_prompt)
+                )
+
+            messages.append(
+                HumanMessage(content=prompt)
+            )
+
+            response = client.invoke(messages)
+
+            return str(response.content)
+
+        except Exception as e:
+            return f"[Ollama Error: {str(e)}]"
+
+    def generate_json(
+        self,
+        prompt: str,
+        system_prompt: Optional[str] = None
+    ) -> Any:
+
+        full_system = f"""
+{system_prompt or ""}
+
+IMPORTANT:
+Return ONLY valid JSON.
+Do not use markdown.
+Do not use ```json.
+Do not include explanations before or after the JSON.
+"""
+
+        try:
+            from langchain_ollama import ChatOllama
+
+            client = ChatOllama(
+                model=self.model_name,
+                base_url=self.base_url,
+                temperature=0,
+                format="json"
+            )
+
+            from langchain_core.messages import (
+                SystemMessage,
+                HumanMessage
+            )
+
+            messages = [
+                SystemMessage(content=full_system),
+                HumanMessage(content=prompt)
+            ]
+
+            response = client.invoke(messages)
+
+            raw = str(response.content).strip()
+
+            print("========== OLLAMA RAW RESPONSE ==========")
+            print(raw)
+            print("=========================================")
+
+            return json.loads(raw)
+
+        except json.JSONDecodeError as e:
+            print("Ollama returned invalid JSON:", e)
+            return {}
+
+        except Exception as e:
+            print("Ollama error:", e)
+            return {}
+
 
 class GeminiProvider(BaseLLMProvider):
     def __init__(self, api_key: Optional[str] = None, model: Optional[str] = None):
@@ -113,17 +220,43 @@ class LLMService:
     """Unified LLM Service with dynamic provider switching."""
 
     def __init__(self, provider: Optional[str] = None):
-        self.provider_name = provider or settings.LLM_PROVIDER
-        if self.provider_name.lower() == "mistral":
+
+        self.provider_name = (
+            provider or settings.LLM_PROVIDER
+        ).lower()
+
+        if self.provider_name == "ollama":
+            self.provider = OllamaProvider()
+
+        elif self.provider_name == "mistral":
             self.provider = MistralProvider()
+
         else:
             self.provider = GeminiProvider()
 
-    def generate(self, prompt: str, system_prompt: Optional[str] = None, temperature: float = 0.3) -> str:
-        return self.provider.generate(prompt, system_prompt, temperature)
+    def generate(
+        self,
+        prompt: str,
+        system_prompt: Optional[str] = None,
+        temperature: float = 0.3
+    ) -> str:
 
-    def generate_json(self, prompt: str, system_prompt: Optional[str] = None) -> Any:
-        return self.provider.generate_json(prompt, system_prompt)
+        return self.provider.generate(
+            prompt,
+            system_prompt,
+            temperature
+        )
+
+    def generate_json(
+        self,
+        prompt: str,
+        system_prompt: Optional[str] = None
+    ) -> Any:
+
+        return self.provider.generate_json(
+            prompt,
+            system_prompt
+        )
 
 
 _default_llm_service: Optional[LLMService] = None

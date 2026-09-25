@@ -26,6 +26,8 @@ CREATE TABLE IF NOT EXISTS resumes (
     parsed_skills TEXT DEFAULT '[]',
     parsed_experience TEXT DEFAULT '[]',
     parsed_education TEXT DEFAULT '[]',
+    status VARCHAR(20) DEFAULT 'processing' NOT NULL,
+    processing_error TEXT,
     created_at TIMESTAMP WITHOUT TIME ZONE DEFAULT CURRENT_TIMESTAMP NOT NULL,
     updated_at TIMESTAMP WITHOUT TIME ZONE DEFAULT CURRENT_TIMESTAMP NOT NULL
 );

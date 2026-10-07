@@ -1,7 +1,14 @@
 import io
+import os
+import tempfile
 import unittest
+from unittest.mock import Mock
+
+from docx import Document
 from fastapi.testclient import TestClient
+
 from main import app
+from services.resume_service import ResumeService
 
 
 class TestResumes(unittest.TestCase):
@@ -16,6 +23,45 @@ class TestResumes(unittest.TestCase):
         resp = self.client.post("/api/v1/auth/login", json={"email": email, "password": pwd})
         self.token = resp.json()["access_token"]
         self.headers = {"Authorization": f"Bearer {self.token}"}
+
+    def test_docx_extraction_includes_all_text_blocks(self):
+        document = Document()
+        document.add_paragraph("Resume body")
+        table = document.add_table(rows=1, cols=2)
+        table.cell(0, 0).text = "Table experience"
+        table.cell(0, 1).text = "Table details"
+        document.sections[0].header.paragraphs[0].text = "Header text"
+        document.sections[0].footer.paragraphs[0].text = "Footer text"
+
+        with tempfile.NamedTemporaryFile(suffix=".docx", delete=False) as file:
+            path = file.name
+
+        try:
+            document.save(path)
+            service = ResumeService.__new__(ResumeService)
+            text = service._extract_text_from_docx(path)
+        finally:
+            os.remove(path)
+
+        for expected_text in (
+            "Resume body",
+            "Table experience",
+            "Table details",
+            "Header text",
+            "Footer text",
+        ):
+            self.assertIn(expected_text, text)
+
+    def test_resume_parser_receives_text_after_8000_characters(self):
+        service = ResumeService.__new__(ResumeService)
+        service.llm_service = Mock()
+        service.llm_service.generate_json.return_value = {}
+        resume_text = "x" * 8000 + " final resume section"
+
+        service.parse_resume_structure(resume_text)
+
+        prompt = service.llm_service.generate_json.call_args.args[0]
+        self.assertTrue(prompt.endswith(" final resume section"))
 
     def test_resume_upload_and_listing(self):
         sample_resume_content = (

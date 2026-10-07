@@ -189,7 +189,7 @@ class RAGQueryResponse(BaseModel):
 # Interview Schemas
 # ==============================================================================
 class QuestionGenerateRequest(BaseModel):
-    analysis_id: int
+    analysis_id: Optional[int] = None
     question_types: Optional[List[str]] = ["technical", "behavioral", "hr", "system_design"]
     count: Optional[int] = 5
 

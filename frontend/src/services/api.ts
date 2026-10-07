@@ -16,7 +16,7 @@ import {
   User,
 } from '../types';
 
-const API_BASE = '/api/v1';
+const API_BASE = (import.meta as any).env?.VITE_API_BASE_URL || '/api/v1';
 
 export const api = axios.create({
   baseURL: API_BASE,
@@ -25,7 +25,7 @@ export const api = axios.create({
   },
 });
 
-// Automatic Bearer Token Interceptor
+// Automatic Bearer Token Request Interceptor
 api.interceptors.request.use((config) => {
   const token = localStorage.getItem('token');
   if (token && config.headers) {
@@ -33,6 +33,21 @@ api.interceptors.request.use((config) => {
   }
   return config;
 });
+
+// Response Interceptor for Error & Auth Expiry Handling
+api.interceptors.response.use(
+  (response) => response,
+  (error) => {
+    if (error.response?.status === 401) {
+      // Clear expired session if not already on auth page
+      if (!window.location.pathname.startsWith('/login') && !window.location.pathname.startsWith('/signup')) {
+        localStorage.removeItem('token');
+        window.location.href = '/login';
+      }
+    }
+    return Promise.reject(error);
+  }
+);
 
 // -----------------------------------------------------------------------------
 // Auth Services
@@ -221,6 +236,10 @@ export const interviewService = {
 export const evaluationService = {
   getMetrics: async (): Promise<{ categories: EvaluationCategory[]; last_updated: string }> => {
     const res = await api.get('/evaluation/metrics');
+    return res.data;
+  },
+  runEvaluation: async (): Promise<{ categories: EvaluationCategory[]; last_updated: string }> => {
+    const res = await api.post('/evaluation/run');
     return res.data;
   },
 };

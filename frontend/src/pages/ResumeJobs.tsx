@@ -8,18 +8,19 @@ import {
   CheckCircle,
   Loader2,
   ArrowRight,
+  RefreshCw,
 } from 'lucide-react';
 import { Navbar } from '../components/Navbar';
 import { ATSScore } from '../components/ATSScore';
 import { SkillsPanel } from '../components/SkillsPanel';
 import { resumeService, jobService, analysisService } from '../services/api';
 import { Resume, JobDescription, Analysis } from '../types';
+import { Link } from 'react-router-dom';
 
 export const ResumeJobs: React.FC = () => {
   const [resumes, setResumes] = useState<Resume[]>([]);
   const [selectedResumeId, setSelectedResumeId] = useState<number | null>(null);
   const [jobText, setJobText] = useState('');
-  const [jobTitle, setJobTitle] = useState('Senior Backend / AI Engineer');
   const [isUploading, setIsUploading] = useState(false);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [analysis, setAnalysis] = useState<Analysis | null>(null);
@@ -37,7 +38,12 @@ export const ResumeJobs: React.FC = () => {
       ]);
       setResumes(resList);
       if (resList.length > 0) setSelectedResumeId(resList[0].id);
-      if (anaList.length > 0) setAnalysis(anaList[0]);
+      if (anaList.length > 0) {
+        setAnalysis(anaList[0]);
+        if (anaList[0].job_description_text) {
+          setJobText(anaList[0].job_description_text);
+        }
+      }
     } catch (err) {
       console.error(err);
     } finally {
@@ -105,7 +111,7 @@ export const ResumeJobs: React.FC = () => {
 
       <main className="flex-1 overflow-y-auto p-6 space-y-6">
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
-          {/* Left Column: Upload & Resumes (4 cols) */}
+          {/* Left Column: Upload & Resumes (5 cols) */}
           <div className="lg:col-span-5 space-y-6">
             {/* Upload Area */}
             <div className="p-5 rounded-2xl border border-slate-800 bg-slate-900/60 backdrop-blur-sm">
@@ -174,23 +180,23 @@ export const ResumeJobs: React.FC = () => {
                 value={jobText}
                 onChange={(e) => setJobText(e.target.value)}
                 placeholder="Paste the target job description here (responsibilities, required skills, preferred qualifications)..."
-                className="w-full h-36 p-3 text-xs bg-slate-950/60 border border-slate-800 rounded-xl text-slate-200 focus:outline-none focus:border-teal-500 resize-none"
+                className="w-full h-36 p-3 text-xs bg-slate-950/60 border border-slate-800 rounded-xl text-slate-200 focus:outline-none focus:border-teal-500 resize-none font-sans"
               />
 
               <button
                 onClick={handleRunAnalysis}
-                disabled={isAnalyzing || !selectedResumeId}
+                disabled={isAnalyzing || !selectedResumeId || !jobText.trim()}
                 className="w-full py-2.5 rounded-xl bg-teal-500 hover:bg-teal-400 disabled:opacity-50 text-slate-950 font-bold text-xs flex items-center justify-center gap-2 transition-all shadow-lg shadow-teal-500/10"
               >
                 {isAnalyzing ? (
                   <>
                     <Loader2 className="h-4 w-4 animate-spin" />
-                    <span>Analyzing ATS & Skill Gaps...</span>
+                    <span>Evaluating ATS & Skills...</span>
                   </>
                 ) : (
                   <>
                     <Sparkles className="h-4 w-4" />
-                    <span>Run ATS Analysis</span>
+                    <span>{analysis ? 'Re-evaluate / Re-run ATS Match' : 'Run ATS Analysis'}</span>
                   </>
                 )}
               </button>
@@ -204,15 +210,35 @@ export const ResumeJobs: React.FC = () => {
                 {/* Score Card */}
                 <div className="p-6 rounded-2xl border border-slate-800 bg-slate-900/60 backdrop-blur-sm flex flex-col md:flex-row items-center justify-between gap-6">
                   <div className="flex-1">
-                    <span className="px-2.5 py-1 rounded-full bg-teal-500/10 border border-teal-500/30 text-teal-400 font-bold text-[10px] uppercase tracking-wider">
-                      Deterministic ATS Engine
-                    </span>
+                    <div className="flex items-center gap-2">
+                      <span className="px-2.5 py-1 rounded-full bg-teal-500/10 border border-teal-500/30 text-teal-400 font-bold text-[10px] uppercase tracking-wider">
+                        Deterministic ATS Engine
+                      </span>
+                      <button
+                        onClick={handleRunAnalysis}
+                        disabled={isAnalyzing}
+                        className="text-[11px] text-slate-400 hover:text-teal-400 flex items-center gap-1 font-semibold"
+                        title="Re-run ATS evaluation"
+                      >
+                        <RefreshCw className={`h-3 w-3 ${isAnalyzing ? 'animate-spin' : ''}`} />
+                        <span>Re-evaluate</span>
+                      </button>
+                    </div>
                     <h2 className="text-lg font-extrabold text-slate-100 mt-2">
                       Competency Match Breakdown
                     </h2>
                     <p className="text-xs text-slate-400 mt-1 leading-relaxed">
                       Score is computed from skill overlap ratio (50%), token Jaccard similarity (30%), and structural resume completeness (20%).
                     </p>
+                    <div className="mt-4">
+                      <Link
+                        to="/mock-interview"
+                        className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-teal-500/20 border border-teal-500/30 text-teal-300 font-bold text-xs hover:bg-teal-500/30 transition-all"
+                      >
+                        <span>Start Mock Interview with this Analysis</span>
+                        <ArrowRight className="h-3.5 w-3.5" />
+                      </Link>
+                    </div>
                   </div>
                   <ATSScore score={analysis.ats_score} size={150} />
                 </div>

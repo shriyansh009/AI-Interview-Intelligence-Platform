@@ -1,19 +1,43 @@
-FROM python:3.11-slim
+FROM python:3.11-slim AS builder
 
 WORKDIR /app
 
-# Install system dependencies including FFmpeg for video processing
 RUN apt-get update && apt-get install -y --no-install-recommends \
-    ffmpeg \
     build-essential \
     curl \
     && rm -rf /var/lib/apt/lists/*
 
 COPY requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt
+RUN pip install --no-cache-dir --user -r requirements.txt
+
+# Final Stage
+FROM python:3.11-slim
+
+WORKDIR /app
+
+# Install runtime dependencies (FFmpeg for video/audio processing)
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    ffmpeg \
+    curl \
+    && rm -rf /var/lib/apt/lists/* \
+    && useradd -m -u 1000 appuser
+
+# Copy installed python dependencies from builder
+COPY --from=builder /root/.local /home/appuser/.local
+ENV PATH=/home/appuser/.local/bin:$PATH
+ENV PYTHONUNBUFFERED=1
 
 COPY . .
 
+# Create runtime upload and vector directories with appuser permissions
+RUN mkdir -p /app/uploads /app/vector_db \
+    && chown -R appuser:appuser /app
+
+USER appuser
+
 EXPOSE 8000
 
-CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000"]
+HEALTHCHECK --interval=30s --timeout=5s --start-period=15s --retries=3 \
+    CMD curl -f http://localhost:8000/health/live || exit 1
+
+CMD ["gunicorn", "-c", "gunicorn_conf.py", "main:app"]

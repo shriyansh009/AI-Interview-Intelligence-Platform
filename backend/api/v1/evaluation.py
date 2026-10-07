@@ -15,3 +15,12 @@ def get_evaluation_metrics(current_user: User = Depends(get_current_user)):
         categories=summary["categories"],
         last_updated=summary["last_updated"]
     )
+
+
+@router.post("/run", response_model=EvaluationSummaryResponse)
+def run_evaluation(current_user: User = Depends(get_current_user)):
+    summary = eval_service.run_live_evaluation()
+    return EvaluationSummaryResponse(
+        categories=summary["categories"],
+        last_updated=summary["last_updated"]
+    )

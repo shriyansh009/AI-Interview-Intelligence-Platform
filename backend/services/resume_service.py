@@ -73,9 +73,100 @@ class ResumeService:
         return "\n".join(text_parts).strip()
 
     def _extract_text_from_docx(self, docx_path: str) -> str:
-        doc = docx.Document(docx_path)
-        text_parts = [para.text for para in doc.paragraphs if para.text]
-        return "\n".join(text_parts).strip()
+        """Extract text from DOCX including paragraphs, tables, headers and footers."""
+
+        if docx is None:
+            raise RuntimeError(
+                "python-docx is not installed. "
+                "Install it with: pip install python-docx"
+            )
+
+        document = docx.Document(docx_path)
+        text_parts = []
+
+        # ---------------------------------------------------------
+        # 1. Normal paragraphs
+        # ---------------------------------------------------------
+        for paragraph in document.paragraphs:
+            text = paragraph.text.strip()
+
+            if text:
+                text_parts.append(text)
+
+        # ---------------------------------------------------------
+        # 2. Tables
+        # ---------------------------------------------------------
+        for table in document.tables:
+            for row in table.rows:
+                row_text = []
+
+                for cell in row.cells:
+                    cell_text = cell.text.strip()
+
+                    if cell_text:
+                        row_text.append(cell_text)
+
+                if row_text:
+                    text_parts.append(" | ".join(row_text))
+
+        # ---------------------------------------------------------
+        # 3. Headers
+        # ---------------------------------------------------------
+        for section in document.sections:
+            for paragraph in section.header.paragraphs:
+                text = paragraph.text.strip()
+
+                if text:
+                    text_parts.append(text)
+
+            # Header tables
+            for table in section.header.tables:
+                for row in table.rows:
+                    row_text = []
+
+                    for cell in row.cells:
+                        cell_text = cell.text.strip()
+
+                        if cell_text:
+                            row_text.append(cell_text)
+
+                    if row_text:
+                        text_parts.append(" | ".join(row_text))
+
+        # ---------------------------------------------------------
+        # 4. Footers
+        # ---------------------------------------------------------
+        for section in document.sections:
+            for paragraph in section.footer.paragraphs:
+                text = paragraph.text.strip()
+
+                if text:
+                    text_parts.append(text)
+
+            # Footer tables
+            for table in section.footer.tables:
+                for row in table.rows:
+                    row_text = []
+
+                    for cell in row.cells:
+                        cell_text = cell.text.strip()
+
+                        if cell_text:
+                            row_text.append(cell_text)
+
+                    if row_text:
+                        text_parts.append(" | ".join(row_text))
+
+        # ---------------------------------------------------------
+        # 5. Clean up whitespace
+        # ---------------------------------------------------------
+        raw_text = "\n".join(text_parts)
+
+        raw_text = re.sub(r"\n{3,}", "\n\n", raw_text)
+        raw_text = re.sub(r"[ \t]+", " ", raw_text)
+
+        return raw_text.strip()
+
 
     def extract_deterministic_skills(self, text: str) -> List[str]:
         """Extract known skills deterministically using regex word boundaries."""
@@ -101,7 +192,7 @@ class ResumeService:
             "Use empty strings for unknown scalar values and empty arrays for missing sections. "
             "Do not return markdown, comments, or additional keys."
         )
-        prompt = f"Resume Text:\n{text[:8000]}"
+        prompt = f"Resume Text:\n{text}"
         parsed = self.llm_service.generate_json(prompt, system_prompt=system_prompt)
         if not isinstance(parsed, dict):
             parsed = {}

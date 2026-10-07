@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { BarChart3, ShieldCheck, Activity, Cpu, Sparkles, RefreshCw, Loader2 } from 'lucide-react';
+import { ShieldCheck, Activity, RefreshCw, Loader2, CheckCircle2 } from 'lucide-react';
 import { Navbar } from '../components/Navbar';
 import { evaluationService } from '../services/api';
 import { EvaluationCategory } from '../types';
@@ -8,6 +8,8 @@ export const Evaluation: React.FC = () => {
   const [categories, setCategories] = useState<EvaluationCategory[]>([]);
   const [lastUpdated, setLastUpdated] = useState<string>('');
   const [loading, setLoading] = useState(true);
+  const [isReevaluating, setIsReevaluating] = useState(false);
+  const [statusMessage, setStatusMessage] = useState<string | null>(null);
 
   const fetchMetrics = async () => {
     setLoading(true);
@@ -16,9 +18,27 @@ export const Evaluation: React.FC = () => {
       setCategories(data.categories || []);
       setLastUpdated(new Date(data.last_updated).toLocaleString());
     } catch (err) {
-      console.error(err);
+      console.error('Error fetching evaluation metrics:', err);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleReevaluate = async () => {
+    setIsReevaluating(true);
+    setStatusMessage(null);
+    try {
+      const data = await evaluationService.runEvaluation();
+      setCategories(data.categories || []);
+      setLastUpdated(new Date(data.last_updated).toLocaleString());
+      setStatusMessage('Benchmark re-evaluation completed successfully!');
+      setTimeout(() => setStatusMessage(null), 4000);
+    } catch (err) {
+      console.error('Error running re-evaluation:', err);
+      // Fallback to fetch
+      await fetchMetrics();
+    } finally {
+      setIsReevaluating(false);
     }
   };
 
@@ -31,6 +51,14 @@ export const Evaluation: React.FC = () => {
       <Navbar title="AI System Evaluation & Benchmarks" subtitle="Quantifiable validation across retrieval, RAG, speech, ATS, and latency" />
 
       <main className="flex-1 overflow-y-auto p-6 max-w-6xl mx-auto w-full space-y-6">
+        {/* Status message */}
+        {statusMessage && (
+          <div className="p-3.5 rounded-xl bg-teal-950/40 border border-teal-500/30 text-teal-300 text-xs flex items-center gap-2">
+            <CheckCircle2 className="h-4 w-4 shrink-0 text-teal-400" />
+            <span>{statusMessage}</span>
+          </div>
+        )}
+
         {/* Header Summary */}
         <div className="p-6 rounded-2xl border border-slate-800 bg-slate-900/60 backdrop-blur-sm flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
           <div>
@@ -40,17 +68,17 @@ export const Evaluation: React.FC = () => {
             </div>
             <h2 className="text-xl font-extrabold text-slate-100">Automated Subsystem Benchmark Results</h2>
             <p className="text-xs text-slate-400 mt-1">
-              Metrics are calculated through automated offline benchmark runs. Last evaluated: <span className="text-slate-300 font-mono">{lastUpdated || 'Recent'}</span>
+              Metrics are calculated through automated benchmark evaluation datasets. Last evaluated: <span className="text-slate-300 font-mono font-semibold">{lastUpdated || 'Recent'}</span>
             </p>
           </div>
 
           <button
-            onClick={fetchMetrics}
-            disabled={loading}
-            className="px-4 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-semibold flex items-center gap-2 border border-slate-700 transition-colors"
+            onClick={handleReevaluate}
+            disabled={loading || isReevaluating}
+            className="px-4 py-2.5 rounded-xl bg-teal-500/10 hover:bg-teal-500/20 text-teal-300 text-xs font-bold flex items-center gap-2 border border-teal-500/30 transition-all shadow-sm"
           >
-            <RefreshCw className={`h-3.5 w-3.5 ${loading ? 'animate-spin' : ''}`} />
-            <span>Re-evaluate</span>
+            <RefreshCw className={`h-3.5 w-3.5 ${isReevaluating ? 'animate-spin' : ''}`} />
+            <span>{isReevaluating ? 'Re-evaluating System...' : 'Re-evaluate System'}</span>
           </button>
         </div>
 

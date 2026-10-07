@@ -167,25 +167,46 @@ def submit_answer(
         question_type=question.question_type
     )
 
-    db_answer = InterviewAnswer(
-        session_id=session.id,
-        question_id=question.id,
-        user_id=current_user.id,
-        answer_text=payload.answer_text,
-        technical_accuracy=eval_result["technical_accuracy"],
-        relevance=eval_result["relevance"],
-        completeness=eval_result["completeness"],
-        clarity=eval_result["clarity"],
-        confidence=eval_result["confidence"],
-        overall_score=eval_result["overall_score"],
-        strengths=json.dumps(eval_result["strengths"]),
-        weaknesses=json.dumps(eval_result["weaknesses"]),
-        missing_concepts=json.dumps(eval_result["missing_concepts"]),
-        suggested_answer=eval_result.get("suggested_answer"),
-    )
-    db.add(db_answer)
-    db.commit()
-    db.refresh(db_answer)
+    existing_answer = db.query(InterviewAnswer).filter(
+        InterviewAnswer.session_id == session.id,
+        InterviewAnswer.question_id == question.id
+    ).first()
+
+    if existing_answer:
+        existing_answer.answer_text = payload.answer_text
+        existing_answer.technical_accuracy = eval_result["technical_accuracy"]
+        existing_answer.relevance = eval_result["relevance"]
+        existing_answer.completeness = eval_result["completeness"]
+        existing_answer.clarity = eval_result["clarity"]
+        existing_answer.confidence = eval_result["confidence"]
+        existing_answer.overall_score = eval_result["overall_score"]
+        existing_answer.strengths = json.dumps(eval_result["strengths"])
+        existing_answer.weaknesses = json.dumps(eval_result["weaknesses"])
+        existing_answer.missing_concepts = json.dumps(eval_result["missing_concepts"])
+        existing_answer.suggested_answer = eval_result.get("suggested_answer")
+        db.commit()
+        db.refresh(existing_answer)
+        db_answer = existing_answer
+    else:
+        db_answer = InterviewAnswer(
+            session_id=session.id,
+            question_id=question.id,
+            user_id=current_user.id,
+            answer_text=payload.answer_text,
+            technical_accuracy=eval_result["technical_accuracy"],
+            relevance=eval_result["relevance"],
+            completeness=eval_result["completeness"],
+            clarity=eval_result["clarity"],
+            confidence=eval_result["confidence"],
+            overall_score=eval_result["overall_score"],
+            strengths=json.dumps(eval_result["strengths"]),
+            weaknesses=json.dumps(eval_result["weaknesses"]),
+            missing_concepts=json.dumps(eval_result["missing_concepts"]),
+            suggested_answer=eval_result.get("suggested_answer"),
+        )
+        db.add(db_answer)
+        db.commit()
+        db.refresh(db_answer)
 
     return AnswerEvaluationResponse(
         answer_id=db_answer.id,

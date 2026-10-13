@@ -44,6 +44,12 @@ class TestAnalysis(unittest.TestCase):
         self.assertGreater(analysis_data["ats_score"], 0.0)
         self.assertIn("id", analysis_data)
 
+        self.assertIn("deterministic_score", analysis_data)
+        self.assertIn("semantic_score", analysis_data)
+        self.assertIn("embedding_similarity", analysis_data)
+        self.assertIn("skill_semantic_matches", analysis_data)
+        self.assertIn("conceptual_gaps", analysis_data)
+
         matching = json.loads(analysis_data["matching_skills"])
         self.assertTrue(any("Python" in s or "Fastapi" in s for s in matching))
 

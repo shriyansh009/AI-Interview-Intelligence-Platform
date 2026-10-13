@@ -43,9 +43,17 @@ export interface Analysis {
   job_description_text: string;
   ats_score: number;
   matching_skills: string; // JSON
-  missing_skills: string; // JSON
+  missing_skills: string;  // JSON
   partial_skills?: string;
-  suggestions: string; // JSON
+  suggestions: string;     // JSON
+  // Semantic analysis fields
+  deterministic_score?: number;
+  semantic_score?: number;
+  embedding_similarity?: number;
+  skill_semantic_matches?: string;  // JSON list
+  conceptual_gaps?: string;         // JSON list
+  semantic_insights?: string;
+  skill_categories?: string;        // JSON dict
   created_at: string;
 }
 

@@ -93,9 +93,17 @@ class AnalysisResponse(BaseModel):
     job_description_text: str
     ats_score: float
     matching_skills: str  # JSON list
-    missing_skills: str  # JSON list
+    missing_skills: str   # JSON list
     partial_skills: Optional[str] = "[]"
-    suggestions: str  # JSON list
+    suggestions: str      # JSON list
+    # ── Semantic analysis fields ──────────────────────────────────────────
+    deterministic_score: Optional[float] = None          # Raw keyword-based score
+    semantic_score: Optional[float] = None               # Semantic embedding score (0-100)
+    embedding_similarity: Optional[float] = None         # Cosine similarity of full documents (0-1)
+    skill_semantic_matches: Optional[str] = "[]"         # JSON list of semantically-matched skills
+    conceptual_gaps: Optional[str] = "[]"                # JSON list of conceptual gaps
+    semantic_insights: Optional[str] = None              # LLM narrative about the semantic fit
+    skill_categories: Optional[str] = "{}"              # JSON dict {category: [skills]}
     created_at: datetime
 
     class Config:

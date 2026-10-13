@@ -60,10 +60,21 @@ def run_analysis(
         resume_id=resume.id,
         job_description_id=payload.job_description_id,
         job_description_text=jd_text,
+        # ── Core scores
         ats_score=analysis_data["ats_score"],
+        deterministic_score=analysis_data.get("deterministic_score", 0.0),
+        semantic_score=analysis_data.get("semantic_score", 0.0),
+        embedding_similarity=analysis_data.get("embedding_similarity", 0.0),
+        # ── Skill matching
         matching_skills=json.dumps(analysis_data["matching_skills"]),
         missing_skills=json.dumps(analysis_data["missing_skills"]),
         partial_skills=json.dumps(analysis_data.get("partial_skills", [])),
+        skill_semantic_matches=json.dumps(analysis_data.get("skill_semantic_matches", [])),
+        # ── Semantic intelligence
+        conceptual_gaps=json.dumps(analysis_data.get("conceptual_gaps", [])),
+        semantic_insights=analysis_data.get("semantic_insights", ""),
+        skill_categories=json.dumps(analysis_data.get("skill_categories", {})),
+        # ── Suggestions
         suggestions=json.dumps(analysis_data["suggestions"]),
     )
     db.add(db_analysis)

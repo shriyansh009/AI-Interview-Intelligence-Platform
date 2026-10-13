@@ -117,6 +117,14 @@ class Analysis(Base):
     missing_skills = Column(Text, default="[]")  # JSON array
     partial_skills = Column(Text, default="[]")  # JSON array
     suggestions = Column(Text, default="[]")  # JSON array
+    # ── Semantic analysis fields ─────────────────────────────────────────
+    deterministic_score = Column(Float, nullable=True, default=0.0)       # Raw keyword-based score
+    semantic_score = Column(Float, nullable=True, default=0.0)             # Semantic embedding score
+    embedding_similarity = Column(Float, nullable=True, default=0.0)       # Cosine sim of full docs
+    skill_semantic_matches = Column(Text, default="[]")   # JSON: skills matched semantically (not exact)
+    conceptual_gaps = Column(Text, default="[]")           # JSON: conceptual gaps from LLM analysis
+    semantic_insights = Column(Text, nullable=True)        # LLM narrative about semantic fit
+    skill_categories = Column(Text, default="{}")          # JSON: {category: [skills]}
     created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)
 

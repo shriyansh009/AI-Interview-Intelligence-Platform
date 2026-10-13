@@ -5,6 +5,7 @@ from typing import Any, Dict, List, Optional, Set, Tuple
 from services.embedding_service import get_embedding_service
 from services.llm_service import get_llm_service
 from services.resume_service import COMMON_TECH_SKILLS, get_resume_service
+from services.semantic_matcher import get_semantic_matcher
 
 
 class AnalysisService:
@@ -12,6 +13,7 @@ class AnalysisService:
         self.embedding_service = get_embedding_service()
         self.llm_service = get_llm_service()
         self.resume_service = get_resume_service()
+        self.semantic_matcher = get_semantic_matcher()
 
     def parse_job_description(self, jd_text: str) -> Dict[str, Any]:
         """Extract title, required skills, preferred skills, and responsibilities from JD."""
@@ -22,7 +24,7 @@ class AnalysisService:
             "Extract structured information and return valid JSON matching: "
             '{"title": "...", "required_skills": ["..."], "preferred_skills": ["..."], "responsibilities": ["..."]}'
         )
-        prompt = f"Job Description:\n{jd_text[:8000]}"
+        prompt = f"Job Description:\n{jd_text[:]}"
         parsed = self.llm_service.generate_json(prompt, system_prompt=system_prompt)
         if not isinstance(parsed, dict):
             parsed = {}
@@ -112,45 +114,87 @@ class AnalysisService:
         resume_skills: List[str],
         jd_text: str
     ) -> Dict[str, Any]:
-        """Perform full ATS and Skill Gap analysis."""
+        """
+        Perform full ATS and Skill Gap analysis with semantic understanding.
+
+        Combines:
+          - Deterministic keyword/token matching (55% weight)
+          - Semantic embedding similarity + LLM conceptual analysis (45% weight)
+        """
         parsed_jd = self.parse_job_description(jd_text)
         jd_skills = parsed_jd["all_skills"]
         if not jd_skills:
             jd_skills = self.resume_service.extract_deterministic_skills(jd_text)
 
-        ats_score, matched, missing, partial = self.compute_deterministic_ats_score(
+        # ── Step 1: Deterministic ATS score ──────────────────────────────────
+        det_score, matched, missing, partial = self.compute_deterministic_ats_score(
             resume_skills=resume_skills,
             jd_skills=jd_skills,
             resume_text=resume_text,
             jd_text=jd_text
         )
 
-        # Generate qualitative improvement suggestions using LLM
+        # ── Step 2: Semantic analysis ─────────────────────────────────────────
+        semantic_result = self.semantic_matcher.compute_semantic_score(
+            resume_text=resume_text,
+            jd_text=jd_text,
+            resume_skills=resume_skills,
+            jd_skills=jd_skills,
+        )
+
+        # ── Step 3: Hybrid ATS score ──────────────────────────────────────────
+        hybrid_score = self.semantic_matcher.compute_hybrid_ats_score(
+            deterministic_score=det_score,
+            semantic_score=semantic_result["semantic_score"],
+        )
+
+        # ── Step 4: LLM improvement suggestions (informed by semantic gaps) ───
         system_prompt = (
             "You are an expert career coach and ATS optimization specialist. "
-            "Based on the matched and missing skills, provide 3-5 concrete, actionable suggestions "
-            "for the candidate to tailor their resume to the target job description. "
+            "Based on the matched skills, missing skills, semantic gaps, and conceptual analysis, "
+            "provide 4-6 concrete, actionable suggestions for the candidate to tailor their resume. "
+            "Focus on MEANING and context — not just keyword stuffing. "
             "Return valid JSON matching: "
             '{"suggestions": ["..."]}'
         )
+
+        conceptual_gaps_str = ", ".join(semantic_result.get("conceptual_gaps", [])[:8])
+        sem_insights = semantic_result.get("semantic_insights", "")
+
         prompt = (
-            f"ATS Score: {ats_score}%\n"
+            f"ATS Score: {hybrid_score}% (Keyword Match: {det_score}%, Semantic Match: {semantic_result['semantic_score']}%)\n"
             f"Matched Skills: {', '.join(matched)}\n"
-            f"Missing Skills: {', '.join(missing)}\n"
-            f"Target Job Description:\n{jd_text[:3000]}"
+            f"Missing Skills (keyword): {', '.join(missing)}\n"
+            f"Semantic Gaps (conceptual): {conceptual_gaps_str}\n"
+            f"Semantic Insight: {sem_insights}\n"
+            f"Target Job Description:\n{jd_text[:2500]}"
         )
         suggestions_data = self.llm_service.generate_json(prompt, system_prompt=system_prompt)
-        suggestions = suggestions_data.get("suggestions", [])
+        suggestions = suggestions_data.get("suggestions", []) if isinstance(suggestions_data, dict) else []
         if not suggestions:
             suggestions = [
-                f"Highlight practical project experience with missing skill: {s}" for s in missing[:3]
+                f"Highlight practical project experience with: {s}" for s in missing[:3]
             ]
 
         return {
-            "ats_score": ats_score,
+            # ── Core scores
+            "ats_score": hybrid_score,
+            "deterministic_score": det_score,
+            "semantic_score": semantic_result["semantic_score"],
+            "embedding_similarity": semantic_result["embedding_similarity"],
+
+            # ── Skill matching
             "matching_skills": matched,
             "missing_skills": missing,
             "partial_skills": partial,
+            "skill_semantic_matches": semantic_result.get("skill_semantic_matches", []),
+
+            # ── Semantic intelligence
+            "conceptual_gaps": semantic_result.get("conceptual_gaps", []),
+            "semantic_insights": semantic_result.get("semantic_insights", ""),
+            "skill_categories": semantic_result.get("skill_categories", {}),
+
+            # ── JD metadata
             "suggestions": suggestions,
             "job_title": parsed_jd.get("title", "Target Job"),
             "required_skills": parsed_jd.get("required_skills", []),

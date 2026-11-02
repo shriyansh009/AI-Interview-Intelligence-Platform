@@ -43,8 +43,8 @@ services:
 
   frontend:
     build:
-      context: ./frontend
-      dockerfile: ../docker/Dockerfile.frontend
+      context: .
+      dockerfile: docker/Dockerfile.frontend
     container_name: interview_frontend
     restart: always
     ports:

@@ -41,6 +41,7 @@ services:
       - EMBEDDING_MODEL=${EMBEDDING_MODEL:-all-MiniLM-L6-v2}
       - VECTOR_DB_DIR=/app/vector_db
       - UPLOAD_DIR=/app/uploads
+      - PORT=8000
       - GUNICORN_WORKERS=${GUNICORN_WORKERS:-3}
       - GUNICORN_TIMEOUT=120
     ports:
@@ -67,6 +68,9 @@ services:
       context: .
       dockerfile: docker/Dockerfile.frontend
     container_name: interview_frontend_prod
+    environment:
+      - PORT=80
+      - BACKEND_URL=http://backend:8000
     restart: always
     ports:
       - "127.0.0.1:8080:80"

@@ -1,178 +1,125 @@
-# Production Deployment
+# Deploy to Render
 
-This guide deploys the React frontend, FastAPI backend, PostgreSQL/pgvector database, and persistent upload/vector storage on a Linux server using Docker Compose. The production Compose file is `docker-compose.prod.yml`.
+This project runs on Render as three services: a FastAPI Docker web service, a React/Nginx Docker web service, and a managed PostgreSQL database. The backend also needs a persistent disk for uploaded files and its Chroma vector index.
 
-## Requirements
+## Before you start
 
-- A Linux server with Docker Engine and the Docker Compose v2 plugin (`docker compose`).
-- Enough memory and disk for PostgreSQL, the embedding model, and video transcription. Whisper transcription is CPU- and memory-intensive; monitor usage and size the server accordingly.
-- An API key for the configured LLM provider (Gemini or Mistral).
-- A domain name and TLS reverse proxy for a public HTTPS deployment. The app's Nginx container serves HTTP on port 80; it does not terminate TLS.
+- Push the project to a GitHub repository connected to your Render account.
+- Have a Gemini or Mistral API key available.
+- Choose a single Render region for the backend and database. The frontend should use the backend's private URL, so keep the web services in the same Render region and workspace.
+- Use a paid backend web-service plan: Render persistent disks are not available on free web services. Choose enough RAM/CPU for PyTorch, embeddings, and Whisper; video transcription can need substantially more than a small instance.
 
-## 1. Get the code onto the server
+## 1. Create the Render PostgreSQL database
 
-Clone the repository and enter its root directory:
+In the Render Dashboard, choose **New → PostgreSQL**:
 
-```bash
-git clone <repository-url>
-cd AI-Interview-Intelligence-Platform
-```
+1. Name the database and select PostgreSQL 16.
+2. Select a region. Use the same region for the backend service.
+3. Choose a plan and create the database.
+4. Open its **Connect** page and copy the **Internal Database URL**. Use this URL for the backend, not the external URL.
 
-Install Docker Engine and the Compose v2 plugin if they are not already installed. Check that Compose is available:
+The app creates its relational tables at startup. It uses Chroma on the backend disk for vector data; it does not require the database's `pgvector` extension.
 
-```bash
-docker compose version
-```
+## 2. Create the backend web service
 
-## 2. Configure production secrets
+Choose **New → Web Service**, connect the repository, and configure:
 
-Create the root `.env` file:
-
-```bash
-cp .env.example .env
-```
-
-Edit `.env`. At minimum, set a unique PostgreSQL password, a strong JWT secret, and the API key for the selected provider:
-
-```dotenv
-POSTGRES_USER=interview_app
-POSTGRES_PASSWORD=<long-random-alphanumeric-password>
-POSTGRES_DB=ai_interview_intelligence
-
-SECRET_KEY=<at-least-32-random-characters>
-LLM_PROVIDER=gemini
-GEMINI_API_KEY=<your-gemini-api-key>
-```
-
-Alternatively, set `LLM_PROVIDER=mistral` and provide `MISTRAL_API_KEY`. A `SECRET_KEY` can be generated with `openssl rand -hex 32`. Use a PostgreSQL password made of URL-safe characters because Compose inserts it into the backend's database connection URL.
-
-Do not use the example secret or Compose's default database credentials in production. Keep `.env` private and out of version control. The `DATABASE_URL` in `.env.example` is for local development; the production Compose file builds the backend URL from the `POSTGRES_*` values.
-
-## 3. Start the production stack
-
-From the repository root:
-
-```bash
-docker compose -f docker-compose.prod.yml up -d --build
-```
-
-The Compose file builds the frontend and backend images, waits for PostgreSQL's health check before starting the backend, and then waits for the backend before starting the frontend. The PostgreSQL, uploads, and Chroma vector database data are kept in named Docker volumes.
-
-Check container status and logs:
-
-```bash
-docker compose -f docker-compose.prod.yml ps
-docker compose -f docker-compose.prod.yml logs -f postgres backend frontend
-```
-
-Once running, the frontend is available on the server at `http://127.0.0.1:8080/`. The production Nginx frontend proxies `/api/` requests to the backend. The frontend, backend, and PostgreSQL host ports are bound to `127.0.0.1`, so they are not exposed directly to the public internet.
-
-## 4. Add HTTPS and deploy the domain
-
-Point the domain's DNS record to the server. Configure a host-level TLS reverse proxy (for example, Caddy or Nginx) to obtain/renew a certificate and forward HTTPS traffic to `127.0.0.1:8080`. Allow inbound HTTPS (443) and, if needed for certificate issuance, HTTP (80) at the host/cloud firewall. The app itself should only be reachable through the TLS proxy for a public deployment.
-
-The API's interactive Swagger docs are disabled when `ENV=production`; the frontend uses the same-origin `/api/` proxy.
-
-## 5. Verify health
-
-Check the frontend health endpoint:
-
-```bash
-curl -fsS http://127.0.0.1:8080/healthz
-```
-
-Check backend readiness from inside its container:
-
-```bash
-docker compose -f docker-compose.prod.yml exec backend \
-  python -c "import urllib.request; print(urllib.request.urlopen('http://localhost:8000/health/ready').read().decode())"
-```
-
-Readiness should report the database, vector storage, and upload storage as ready. You can also open the site in a browser and test sign-up, login, and an LLM-backed feature.
-
-## CI/CD with GitHub Actions
-
-The workflow in `.github/workflows/ci.yml` runs the backend tests and frontend type-check/build on pushes and pull requests. After both checks pass, a push to `main` deploys over SSH if the repository variable `DEPLOY_ENABLED` is set to `true`. Pull requests and pushes to other branches never deploy.
-
-### Prepare the server
-
-Complete the production setup above, then clone the repository on the server into a stable absolute path, such as `/opt/ai-interview-intelligence`. Check out the `main` branch, create the root `.env` there with production settings, and verify that the `deploy` user can run Docker Compose and pull from the GitHub repository. For a private repository, configure a separate read-only GitHub deploy key on the server for `git pull`.
-
-Create a dedicated SSH key pair for GitHub Actions. Add its public key to the server's deploy user's `~/.ssh/authorized_keys`; store its private key as a GitHub Actions secret. Avoid using a personal SSH key or the root account.
-
-### Configure GitHub Actions
-
-In the repository's **Settings → Secrets and variables → Actions**, add these repository variables:
-
-| Variable | Value |
+| Setting | Value |
 |---|---|
-| `DEPLOY_ENABLED` | `true` to enable deployment; leave unset or set to `false` to disable it |
-| `DEPLOY_HOST` | Server hostname or IP address |
-| `DEPLOY_USER` | SSH deploy account |
-| `DEPLOY_PATH` | Absolute path to the server clone, without spaces or single quotes |
-| `DEPLOY_PORT` | SSH port; optional, defaults to `22` |
+| Runtime | Docker |
+| Branch | `main` |
+| Dockerfile Path | `docker/Dockerfile.backend` |
+| Docker Build Context Directory | `backend` |
+| Health Check Path | `/health/live` |
+| Region | Same as PostgreSQL |
+| Plan | Paid plan with sufficient memory; start with at least 2 GB RAM and increase for transcription workloads |
 
-Add these repository secrets:
+Add these environment variables in the backend service's **Environment** settings:
 
-| Secret | Value |
+| Key | Value |
 |---|---|
-| `DEPLOY_SSH_PRIVATE_KEY` | Private half of the dedicated Actions SSH key |
-| `DEPLOY_KNOWN_HOSTS` | Verified SSH host-key line(s) for the server |
+| `ENV` | `production` |
+| `DEBUG` | `false` |
+| `DATABASE_URL` | Internal Database URL copied from Render PostgreSQL |
+| `SECRET_KEY` | A unique random secret of at least 32 characters |
+| `LLM_PROVIDER` | `gemini` or `mistral` |
+| `GEMINI_API_KEY` | Your Gemini key when using Gemini |
+| `MISTRAL_API_KEY` | Your Mistral key when using Mistral |
+| `UPLOAD_DIR` | `/var/data/uploads` |
+| `VECTOR_DB_DIR` | `/var/data/vector_db` |
+| `GUNICORN_WORKERS` | `1` to start; increase only after checking memory usage |
 
-Obtain the server host key with `ssh-keyscan -p <port> <host>`, verify its fingerprint against the server provider or another trusted channel, and only then save the verified output as `DEPLOY_KNOWN_HOSTS`. The workflow requires strict SSH host-key checking.
+Generate a secret locally, for example with `openssl rand -hex 32`. Add optional `SARVAM_API_KEY` only if using Sarvam features. Do not put secrets in source control.
 
-### Deployment behavior
+### Attach persistent backend storage
 
-For each successful push to `main`, Actions connects to the server, fast-forward pulls `origin main`, and runs `docker compose -f docker-compose.prod.yml up -d --build`. It then prints the Compose service status. The server's `.env` and persistent Docker volumes remain in place. If either CI job fails, deployment is skipped.
+In the backend service's **Disks** settings, add a persistent disk:
 
-Protect the `main` branch with required CI checks and restrict who can change the deployment variables/secrets. To disable automatic deployments while keeping CI enabled, unset `DEPLOY_ENABLED` or change it to `false`.
+- **Mount path:** `/var/data`
+- **Size:** choose based on expected resume/video uploads and Chroma growth; increase it as needed.
 
-## 7. Manual update and rollback
+The paths in `UPLOAD_DIR` and `VECTOR_DB_DIR` must remain under this mount. Without it, uploaded data and the vector index can be lost when Render replaces the instance. Persistent disks also mean this service runs as a single instance and redeploys can briefly interrupt requests; horizontal scaling requires moving uploads and vector storage to shared external services.
 
-Pull the desired revision and rebuild/recreate the services:
+Deploy the backend and wait for it to pass `/health/live`. In its **Connect → Internal** section, copy its private service address. Use the full HTTP URL and port shown by Render (typically `http://<private-hostname>:10000`) in the next step.
 
-```bash
-git pull --ff-only origin main
-docker compose -f docker-compose.prod.yml up -d --build
-docker compose -f docker-compose.prod.yml ps
-```
+## 3. Create the frontend web service
 
-Review the application/database schema changes before upgrading. PostgreSQL's `database/schema.sql` bootstrap script runs only when the database volume is first created, and the backend's `create_all` initialization creates missing tables but does not migrate existing tables.
+Create another **Web Service** using the same repository and branch:
 
-To roll back application code, check out the desired previously deployed commit on the server and rebuild with the same Compose command. Take and verify database backups before deploying schema changes; rolling application code back does not reverse database changes.
+| Setting | Value |
+|---|---|
+| Runtime | Docker |
+| Dockerfile Path | `docker/Dockerfile.frontend` |
+| Docker Build Context Directory | Repository root (`.`) |
+| Health Check Path | `/healthz` |
+| Region | Same as backend |
+| Plan | Select a plan appropriate for expected traffic |
 
-## Data, backups, and shutdown
+Set this environment variable:
 
-The production volumes are `postgres_prod_data`, `backend_prod_uploads`, and `backend_prod_vectors` (with the Compose project name prefixed). Back up the database and application files/volumes regularly and store backups outside the server. For example, a SQL dump can be written on the host with:
+| Key | Value |
+|---|---|
+| `BACKEND_URL` | Backend's private HTTP URL from its **Connect → Internal** section, without a trailing slash |
 
-```bash
-docker compose -f docker-compose.prod.yml exec -T postgres \
-  sh -c 'pg_dump -U "$POSTGRES_USER" "$POSTGRES_DB"' > database-backup.sql
-```
+For example, use `http://<backend-private-hostname>:10000`, not the backend's public URL. Nginx proxies `/api/` requests to this service over Render's private network. The Docker image reads Render's `PORT` at startup, so the web server listens on the port Render assigns.
 
-Stopping services does not delete their volumes:
+Deploy the frontend. Open its `onrender.com` URL and test account signup, login, and an AI-backed feature. The backend's `/health/ready` endpoint checks database and persistent storage readiness; it is available from the backend's private or public service URL.
 
-```bash
-docker compose -f docker-compose.prod.yml down
-```
+## 4. Configure custom domains (optional)
 
-Do not use `docker compose down -v` for routine shutdown or upgrades: it deletes the named volumes, including database, uploaded files, and vector data.
+Add your domain in the frontend service's **Settings → Custom Domains** and follow Render's DNS instructions. Render provisions TLS for verified domains. The browser uses the frontend domain; API traffic is reverse-proxied by Nginx, so no browser CORS configuration is needed.
 
-## Troubleshooting
+## 5. CI/CD from GitHub Actions
 
-- **A container exits on startup:** inspect `docker compose -f docker-compose.prod.yml logs <service>`. Confirm that `.env` is in the repository root and contains non-placeholder secrets.
-- **Backend is unhealthy or not ready:** verify PostgreSQL is healthy, credentials match, and the backend can write to its upload and vector directories.
-- **LLM calls fail:** check `LLM_PROVIDER` and the matching provider API key in `.env`; then recreate the backend with `docker compose -f docker-compose.prod.yml up -d --force-recreate backend`.
-- **Upload/transcription fails:** check free disk space and backend logs. Video processing requires FFmpeg (included in the backend image) and can use substantial CPU, RAM, and disk.
-- **Need a clean database:** only do this when you intend to permanently delete all application data. Removing the Compose volumes destroys the database, uploaded files, and vector index.
+The workflow in `.github/workflows/ci.yml` runs backend tests and the frontend type-check/build for pushes and pull requests. After both checks pass, a push to `main` triggers Render deploy hooks for the backend and frontend.
 
-## Local production-stack smoke test
+To make deployment happen **only after CI passes**:
 
-Before deploying to a server, the same stack can be tested locally:
+1. In both Render web services, disable automatic deploys from Git so a push cannot deploy before GitHub Actions finishes.
+2. In each service's **Settings**, create/copy its **Deploy Hook** URL. Treat each URL like a password.
+3. In GitHub, go to **Settings → Secrets and variables → Actions**. Add the repository variable `DEPLOY_ENABLED` with value `true`.
+4. Add repository secrets `RENDER_BACKEND_DEPLOY_HOOK` and `RENDER_FRONTEND_DEPLOY_HOOK`, using the corresponding URLs from Render.
+5. Protect `main` and require both CI jobs to pass before merging.
 
-```bash
-docker compose -f docker-compose.prod.yml up -d --build
-docker compose -f docker-compose.prod.yml ps
-```
+With `DEPLOY_ENABLED` unset or set to `false`, CI still runs but does not deploy. The workflow never deploys pull requests or other branches. Render deploy hooks start a deployment; check each service's Render Events page to confirm the build and health check complete successfully.
 
-Open `http://localhost:8080/`, and follow the health checks above. Stop it with `docker compose -f docker-compose.prod.yml down` when finished.
+## Operations and troubleshooting
+
+- **Backend health check fails:** inspect Render logs; verify `DATABASE_URL`, the `/var/data` disk mount, and `UPLOAD_DIR`/`VECTOR_DB_DIR`.
+- **Frontend loads but API calls fail:** check that `BACKEND_URL` is the backend's internal URL including `http://` and its port, with no trailing slash; confirm both services are in the same region and workspace.
+- **Changes or uploads disappear:** verify a persistent disk is mounted at `/var/data` and both data directories are beneath it.
+- **AI calls fail:** check the selected `LLM_PROVIDER` and the matching API key in the backend's Environment settings.
+- **Video transcription is slow or runs out of memory:** increase backend CPU/RAM and storage, or lower the Whisper model with `WHISPER_MODEL`.
+- **Database updates:** the app's `create_all` initializes missing tables but does not migrate existing ones. Back up the database and plan schema migrations before shipping schema changes.
+
+## Alternative: self-host with Docker Compose
+
+For deployments outside Render, the repository also includes `docker-compose.prod.yml`. Configure a root `.env` file and follow the Compose procedure there; its database and uploaded/vector data are stored in named Docker volumes.
+
+## Render references
+
+- [Render Docker services](https://render.com/docs/docker)
+- [Render persistent disks](https://render.com/docs/disks)
+- [Render PostgreSQL connections](https://render.com/docs/postgresql-creating-connecting)
+- [Render private networking](https://render.com/docs/private-network)
+- [Render deploy hooks](https://render.com/docs/deploy-hooks)

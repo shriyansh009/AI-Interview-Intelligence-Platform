@@ -32,6 +32,7 @@ services:
       - SECRET_KEY=${SECRET_KEY:-dev-secret-key-12345}
       - VECTOR_DB_DIR=/app/vector_db
       - UPLOAD_DIR=/app/uploads
+      - PORT=8000
     ports:
       - "8000:8000"
     depends_on:
@@ -47,6 +48,9 @@ services:
       dockerfile: docker/Dockerfile.frontend
     container_name: interview_frontend
     restart: always
+    environment:
+      - PORT=80
+      - BACKEND_URL=http://backend:8000
     ports:
       - "5173:80"
     depends_on:
